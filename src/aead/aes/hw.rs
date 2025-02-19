@@ -20,12 +20,21 @@
 
 use super::{Block, Counter, EncryptBlock, EncryptCtr32, Iv, KeyBytes, Overlapping, AES_KEY};
 use crate::{cpu, error};
+use cfg_if::cfg_if;
 
-#[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-pub(in super::super) type RequiredCpuFeatures = cpu::arm::Aes;
-
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub(in super::super) type RequiredCpuFeatures = cpu::intel::Aes;
+cfg_if! {
+    if #[cfg(all(target_arch = "aarch64", target_endian = "little"))] {
+        pub(in super::super) type RequiredCpuFeatures = cpu::arm::Aes;
+        pub(in super::super) type OptionalCpuFeatures = ();
+    } else if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
+        use cpu::intel::{Aes, Avx, Ssse3};
+        // Some functions seem to have been written to require only SSE/SSE2
+        // but there seem to be no SSSE3-less CPUs with AES-NI, and we don't
+        // have feature detection for SSE2.
+        pub(in super::super) type RequiredCpuFeatures = (Aes, Ssse3);
+        pub(in super::super) type OptionalCpuFeatures = Avx;
+    }
+}
 
 #[derive(Clone)]
 pub struct Key {
@@ -33,11 +42,29 @@ pub struct Key {
 }
 
 impl Key {
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
     pub(in super::super) fn new(
         bytes: KeyBytes<'_>,
-        _cpu: RequiredCpuFeatures,
+        _required_cpu_features: RequiredCpuFeatures,
+        _optional_cpu_features: Option<OptionalCpuFeatures>,
     ) -> Result<Self, error::Unspecified> {
         let inner = unsafe { set_encrypt_key!(aes_hw_set_encrypt_key, bytes) }?;
+        Ok(Self { inner })
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub(in super::super) fn new(
+        bytes: KeyBytes<'_>,
+        (Aes { .. }, Ssse3 { .. }): RequiredCpuFeatures,
+        optional_cpu_features: Option<OptionalCpuFeatures>,
+    ) -> Result<Self, error::Unspecified> {
+        // Ssse3 is required, but upstream only uses this if there is also Avx;
+        // presumably the base version is faster on pre-AVX CPUs.
+        let inner = if let Some(Avx { .. }) = optional_cpu_features {
+            unsafe { set_encrypt_key!(aes_hw_set_encrypt_key_alt, bytes) }?
+        } else {
+            unsafe { set_encrypt_key!(aes_hw_set_encrypt_key_base, bytes) }?
+        };
         Ok(Self { inner })
     }
 
@@ -63,8 +90,6 @@ impl EncryptBlock for Key {
 
 impl EncryptCtr32 for Key {
     fn ctr32_encrypt_within(&self, in_out: Overlapping<'_>, ctr: &mut Counter) {
-        #[cfg(target_arch = "x86_64")]
-        let _: cpu::Features = cpu::features();
         unsafe { ctr32_encrypt_blocks!(aes_hw_ctr32_encrypt_blocks, in_out, &self.inner, ctr) }
     }
 }

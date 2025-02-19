@@ -26,7 +26,7 @@ cfg_if! {
             ))] {
         #[macro_use]
         mod ffi;
-        #[cfg(test)]
+        #[cfg(any(target_arch = "x86", test))]
         mod fallback;
     } else {
         mod fallback;
@@ -113,41 +113,32 @@ impl Key {
                         self, counter, in_out.copy_within(), ())
                 }
             } else if #[cfg(target_arch = "x86")] {
-                use cpu::{GetFeature as _, intel::{Fxsr, Ssse3}};
+                use cpu::{GetFeature as _, intel::Ssse3};
                 if in_out.len() >= 1 {
                     if let Some(cpu) = cpu.get_feature() {
                         chacha20_ctr32_ffi!(
-                            unsafe { (1, (Fxsr, Ssse3), &mut [u8]) => ChaCha20_ctr32_ssse3 },
+                            unsafe { (1, Ssse3, &mut [u8]) => ChaCha20_ctr32_ssse3 },
                             self, counter, in_out.copy_within(), cpu)
                     } else {
-                        chacha20_ctr32_ffi!(
-                            unsafe { (1, (), &mut [u8]) => ChaCha20_ctr32_nohw },
-                            self, counter, in_out.copy_within(), ())
+                        let _: cpu::Features = cpu;
+                        fallback::ChaCha20_ctr32(self, counter, in_out)
                     }
                 }
             } else if #[cfg(target_arch = "x86_64")] {
                 use cpu::{GetFeature, intel::{Avx2, Ssse3}};
                 const SSE_MIN_LEN: usize = 128 + 1; // Also AVX2, SSSE3_4X, SSSE3
                 if in_out.len() >= SSE_MIN_LEN {
-                    if let Some(cpu) = cpu.get_feature() {
+                    let values = cpu.values();
+                    if let Some(cpu) = values.get_feature() {
                         return chacha20_ctr32_ffi!(
                             unsafe { (SSE_MIN_LEN, Avx2, Overlapping<'_>) => ChaCha20_ctr32_avx2 },
                             self, counter, in_out, cpu);
                     }
-                    if let Some(cpu) = <cpu::Features as GetFeature<Ssse3>>::get_feature(&cpu) {
-                        if in_out.len() >= 192 || !cpu.perf_is_like_silvermont() {
-                            return chacha20_ctr32_ffi!(
-                                unsafe {
-                                    (SSE_MIN_LEN, Ssse3, Overlapping<'_>) =>
-                                    ChaCha20_ctr32_ssse3_4x
-                                },
-                                self, counter, in_out, cpu)
-                        }
+                    if let Some(cpu) = values.get_feature() {
                         return chacha20_ctr32_ffi!(
-                            unsafe {
-                                (SSE_MIN_LEN, Ssse3, Overlapping<'_>) => ChaCha20_ctr32_ssse3
-                            },
-                            self, counter, in_out, cpu)
+                            unsafe { (SSE_MIN_LEN, Ssse3, Overlapping<'_>) =>
+                                ChaCha20_ctr32_ssse3_4x },
+                            self, counter, in_out, cpu);
                     }
                 }
                 if in_out.len() >= 1 {
@@ -193,7 +184,6 @@ impl Counter {
         not(any(
             all(target_arch = "aarch64", target_endian = "little"),
             all(target_arch = "arm", target_endian = "little"),
-            target_arch = "x86",
             target_arch = "x86_64"
         ))
     ))]

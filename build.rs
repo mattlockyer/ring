@@ -64,52 +64,52 @@ const RING_SRCS: &[(&[&str], &str)] = &[
     (&[], "crypto/mem.c"),
     (&[], "crypto/poly1305/poly1305.c"),
 
-    (&[AARCH64, ARM, X86_64, X86], "crypto/crypto.c"),
+    (&[ARM, X86_64, X86], "crypto/crypto.c"),
 
     (&[X86_64, X86], "crypto/cpu_intel.c"),
 
     (&[X86], "crypto/fipsmodule/aes/asm/aesni-x86.pl"),
+    (&[X86], "crypto/fipsmodule/aes/asm/ghash-x86.pl"),
     (&[X86], "crypto/fipsmodule/aes/asm/vpaes-x86.pl"),
     (&[X86], "crypto/fipsmodule/bn/asm/x86-mont.pl"),
     (&[X86], "crypto/chacha/asm/chacha-x86.pl"),
-    (&[X86], "crypto/fipsmodule/modes/asm/ghash-x86.pl"),
 
     (&[X86_64], "crypto/chacha/asm/chacha-x86_64.pl"),
     (&[X86_64], "crypto/curve25519/curve25519_64_adx.c"),
+    (&[X86_64], "crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl"),
     (&[X86_64], "crypto/fipsmodule/aes/asm/aesni-x86_64.pl"),
+    (&[X86_64], "crypto/fipsmodule/aes/asm/ghash-x86_64.pl"),
     (&[X86_64], "crypto/fipsmodule/aes/asm/vpaes-x86_64.pl"),
     (&[X86_64], "crypto/fipsmodule/bn/asm/x86_64-mont.pl"),
     (&[X86_64], "crypto/fipsmodule/bn/asm/x86_64-mont5.pl"),
     (&[X86_64], "crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl"),
-    (&[X86_64], "crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl"),
-    (&[X86_64], "crypto/fipsmodule/modes/asm/ghash-x86_64.pl"),
     (&[X86_64], SHA512_X86_64),
-    (&[X86_64], "crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl"),
+    (&[X86_64], "crypto/cipher/asm/chacha20_poly1305_x86_64.pl"),
     (&[X86_64], "third_party/fiat/asm/fiat_curve25519_adx_mul.S"),
     (&[X86_64], "third_party/fiat/asm/fiat_curve25519_adx_square.S"),
 
     (&[AARCH64, X86_64], "crypto/fipsmodule/ec/p256-nistz.c"),
 
     (&[ARM], "crypto/fipsmodule/aes/asm/bsaes-armv7.pl"),
+    (&[ARM], "crypto/fipsmodule/aes/asm/ghash-armv4.pl"),
     (&[ARM], "crypto/fipsmodule/aes/asm/vpaes-armv7.pl"),
     (&[ARM], "crypto/fipsmodule/bn/asm/armv4-mont.pl"),
     (&[ARM], "crypto/chacha/asm/chacha-armv4.pl"),
     (&[ARM], "crypto/curve25519/asm/x25519-asm-arm.S"),
-    (&[ARM], "crypto/fipsmodule/modes/asm/ghash-armv4.pl"),
     (&[ARM], "crypto/poly1305/poly1305_arm.c"),
     (&[ARM], "crypto/poly1305/poly1305_arm_asm.S"),
     (&[ARM], "crypto/fipsmodule/sha/asm/sha256-armv4.pl"),
     (&[ARM], "crypto/fipsmodule/sha/asm/sha512-armv4.pl"),
 
     (&[AARCH64], "crypto/chacha/asm/chacha-armv8.pl"),
-    (&[AARCH64], "crypto/cipher_extra/asm/chacha20_poly1305_armv8.pl"),
+    (&[AARCH64], "crypto/cipher/asm/chacha20_poly1305_armv8.pl"),
     (&[AARCH64], "crypto/fipsmodule/aes/asm/aesv8-armx.pl"),
+    (&[AARCH64], "crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl"),
+    (&[AARCH64], "crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl"),
+    (&[AARCH64], "crypto/fipsmodule/aes/asm/ghashv8-armx.pl"),
     (&[AARCH64], "crypto/fipsmodule/aes/asm/vpaes-armv8.pl"),
     (&[AARCH64], "crypto/fipsmodule/bn/asm/armv8-mont.pl"),
     (&[AARCH64], "crypto/fipsmodule/ec/asm/p256-armv8-asm.pl"),
-    (&[AARCH64], "crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl"),
-    (&[AARCH64], "crypto/fipsmodule/modes/asm/ghash-neon-armv8.pl"),
-    (&[AARCH64], "crypto/fipsmodule/modes/asm/ghashv8-armx.pl"),
     (&[AARCH64], SHA512_ARMV8),
 ];
 
@@ -583,6 +583,13 @@ fn configure_cc(c: &mut cc::Build, target: &Target, c_root_dir: &Path, include_d
         let _ = c.define("NDEBUG", None);
     }
 
+    if target.arch == X86 {
+        let is_msvc_not_clang_cl = compiler.is_like_msvc() && !compiler.is_like_clang_cl();
+        if !is_msvc_not_clang_cl {
+            let _ = c.flag("-msse2");
+        }
+    }
+
     // Allow cross-compiling without a target sysroot for these targets.
     if (target.arch == WASM32)
         || (target.os == "linux" && target.env == "musl" && target.arch != X86_64)
@@ -714,7 +721,6 @@ fn perlasm(
         ];
         if asm_target.arch == X86 {
             args.push("-fPIC".into());
-            args.push("-DOPENSSL_IA32_SSE2".into());
         }
         // Work around PerlAsm issue for ARM and AAarch64 targets by replacing
         // back slashes with forward slashes.
@@ -852,6 +858,8 @@ fn prefix_all_symbols(pp: char, prefix_prefix: &str, prefix: &str) -> String {
     ];
 
     static SYMBOLS_TO_PREFIX: &[&str] = &[
+        "adx_bmi2_available",
+        "avx2_available",
         "CRYPTO_memcmp",
         "CRYPTO_poly1305_finish",
         "CRYPTO_poly1305_finish_neon",
@@ -877,11 +885,11 @@ fn prefix_all_symbols(pp: char, prefix_prefix: &str, prefix: &str) -> String {
         "LIMBS_window5_split_window",
         "LIMBS_window5_unsplit_window",
         "LIMB_shr",
-        "OPENSSL_armcap_P",
         "OPENSSL_cpuid_setup",
-        "OPENSSL_ia32cap_P",
         "aes_hw_ctr32_encrypt_blocks",
         "aes_hw_set_encrypt_key",
+        "aes_hw_set_encrypt_key_alt",
+        "aes_hw_set_encrypt_key_base",
         "aes_nohw_ctr32_encrypt_blocks",
         "aes_nohw_encrypt",
         "aes_nohw_set_encrypt_key",
@@ -894,9 +902,11 @@ fn prefix_all_symbols(pp: char, prefix_prefix: &str, prefix: &str) -> String {
         "bn_mul4x_mont",
         "bn_mulx4x_mont",
         "bn_mul8x_mont_neon",
-        "bn_mul_mont_gather5",
+        "bn_mul4x_mont_gather5",
+        "bn_mulx4x_mont_gather5",
         "bn_neg_inv_mod_r_u64",
-        "bn_power5",
+        "bn_power5_nohw",
+        "bn_powerx5",
         "bn_scatter5",
         "bn_sqr8x_internal",
         "bn_sqr8x_mont",
@@ -906,7 +916,29 @@ fn prefix_all_symbols(pp: char, prefix_prefix: &str, prefix: &str) -> String {
         "bssl_constant_time_test_conditional_memxor",
         "bssl_constant_time_test_main",
         "chacha20_poly1305_open",
+        "chacha20_poly1305_open_avx2",
+        "chacha20_poly1305_open_sse41",
         "chacha20_poly1305_seal",
+        "chacha20_poly1305_seal_avx2",
+        "chacha20_poly1305_seal_sse41",
+        "ecp_nistz256_mul_mont_adx",
+        "ecp_nistz256_mul_mont_nohw",
+        "ecp_nistz256_ord_mul_mont_adx",
+        "ecp_nistz256_ord_mul_mont_nohw",
+        "ecp_nistz256_ord_sqr_mont_adx",
+        "ecp_nistz256_ord_sqr_mont_nohw",
+        "ecp_nistz256_point_add_adx",
+        "ecp_nistz256_point_add_nohw",
+        "ecp_nistz256_point_add_affine_adx",
+        "ecp_nistz256_point_add_affine_nohw",
+        "ecp_nistz256_point_double_adx",
+        "ecp_nistz256_point_double_nohw",
+        "ecp_nistz256_select_w5_avx2",
+        "ecp_nistz256_select_w5_nohw",
+        "ecp_nistz256_select_w7_avx2",
+        "ecp_nistz256_select_w7_nohw",
+        "ecp_nistz256_sqr_mont_adx",
+        "ecp_nistz256_sqr_mont_nohw",
         "fiat_curve25519_adx_mul",
         "fiat_curve25519_adx_square",
         "gcm_ghash_avx",
@@ -925,6 +957,7 @@ fn prefix_all_symbols(pp: char, prefix_prefix: &str, prefix: &str) -> String {
         "ecp_nistz256_neg",
         "ecp_nistz256_select_w5",
         "ecp_nistz256_select_w7",
+        "neon_available",
         "p256_mul_mont",
         "p256_point_add",
         "p256_point_add_affine",

@@ -91,9 +91,24 @@ impl<'a, T, const N: usize> Iterator for AsChunksIter<'a, T, N> {
 
 // `&mut [[T; N]]` is implicitly convertable to `&[[T; N]]` but our types can't
 // do that.
-impl<'a, T, const N: usize> From<AsChunksMut<'a, T, N>> for AsChunks<'a, T, N> {
+impl<'a, T, const N: usize> From<&'a AsChunksMut<'_, T, N>> for AsChunks<'a, T, N> {
     #[inline(always)]
-    fn from(as_mut: AsChunksMut<'a, T, N>) -> Self {
-        Self(as_mut.into_inner_for_conversion())
+    fn from(as_mut: &'a AsChunksMut<'_, T, N>) -> Self {
+        Self(as_mut.as_flattened())
+    }
+}
+
+impl<'a, T, const N: usize> From<&'a [T; N]> for AsChunks<'a, T, N> {
+    #[inline(always)]
+    fn from(array: &'a [T; N]) -> Self {
+        Self(array)
+    }
+}
+
+// TODO: `impl From<AsChunks<'a, T, {2*N}> for AsChunks<'a, T, N>`.
+impl<'a, T> From<AsChunks<'a, T, 8>> for AsChunks<'a, T, 4> {
+    #[inline(always)]
+    fn from(as_2x: AsChunks<'a, T, 8>) -> Self {
+        Self(as_2x.0)
     }
 }

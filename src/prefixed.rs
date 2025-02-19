@@ -46,7 +46,24 @@ macro_rules! prefixed_extern {
         }
     };
 
-    // A global variable.
+    // A `static` global variable.
+    {
+        $( #[$meta:meta] )*
+        $vis:vis static $name:ident: $typ:ty;
+    } => {
+        extern "C" {
+            prefixed_item! {
+                link_name
+                $name
+                {
+                    $( #[$meta] )*
+                    $vis static $name: $typ;
+                }
+            }
+        }
+    };
+
+    // A `static mut` global variable.
     {
         $( #[$meta:meta] )*
         $vis:vis static mut $name:ident: $typ:ty;
@@ -75,14 +92,15 @@ macro_rules! prefixed_export {
     // A function.
     {
         $( #[$meta:meta] )*
-        $vis:vis unsafe fn $name:ident ( $( $arg_pat:ident : $arg_ty:ty ),* $(,)? ) $body:block
+        $vis:vis unsafe extern "C"
+        fn $name:ident ( $( $arg_pat:ident : $arg_ty:ty ),* $(,)? ) $body:block
     } => {
         prefixed_item! {
             export_name
             $name
             {
                 $( #[$meta] )*
-                $vis unsafe fn $name ( $( $arg_pat : $arg_ty ),* ) $body
+                $vis unsafe extern "C" fn $name ( $( $arg_pat : $arg_ty ),* ) $body
             }
         }
     };

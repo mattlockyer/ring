@@ -14,14 +14,14 @@ repository = "https://github.com/briansmith/ring"
 rust-version = "1.63.0"
 
 # Keep in sync with `links` below.
-version = "0.17.8"
+version = "0.17.9"
 
 # Keep in sync with `version` above.
 #
 # build.rs verifies that this equals "ring_core_{major}_{minor}_{patch}_{pre}"
 # as keeping this in sync with the symbol prefixing is crucial for ensuring
 # the safety of multiple versions of *ring* being used in a program.
-links = "ring_core_0_17_8_"
+links = "ring_core_0_17_9_"
 
 include = [
     "LICENSE",
@@ -36,8 +36,6 @@ include = [
     "crypto/chacha/asm/chacha-armv8.pl",
     "crypto/chacha/asm/chacha-x86.pl",
     "crypto/chacha/asm/chacha-x86_64.pl",
-    "crypto/cipher_extra/test/aes_128_gcm_siv_tests.txt",
-    "crypto/cipher_extra/test/aes_256_gcm_siv_tests.txt",
     "crypto/constant_time_test.c",
     "crypto/cpu_intel.c",
     "crypto/crypto.c",
@@ -48,11 +46,20 @@ include = [
     "crypto/curve25519/internal.h",
     "crypto/fipsmodule/aes/aes_nohw.c",
     "crypto/fipsmodule/aes/asm/aesni-x86.pl",
+    "crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl",
     "crypto/fipsmodule/aes/asm/aesni-x86_64.pl",
     "crypto/fipsmodule/aes/asm/aesv8-armx.pl",
+    "crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl",
+    "crypto/fipsmodule/aes/asm/ghash-armv4.pl",
+    "crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl",
+    "crypto/fipsmodule/aes/asm/ghash-x86.pl",
+    "crypto/fipsmodule/aes/asm/ghash-x86_64.pl",
+    "crypto/fipsmodule/aes/asm/ghashv8-armx.pl",
     "crypto/fipsmodule/aes/asm/bsaes-armv7.pl",
     "crypto/fipsmodule/aes/asm/bsaes-x86_64.pl",
     "crypto/fipsmodule/aes/asm/vsaes-armv7.pl",
+    "crypto/fipsmodule/aes/asm/vpaes-armv7.pl",
+    "crypto/fipsmodule/aes/asm/vpaes-armv8.pl",
     "crypto/fipsmodule/aes/asm/vpaes-x86.pl",
     "crypto/fipsmodule/aes/asm/vpaes-x86_64.pl",
     "crypto/fipsmodule/bn/asm/armv4-mont.pl",
@@ -79,12 +86,6 @@ include = [
     "crypto/fipsmodule/ec/p256_table.h",
     "crypto/fipsmodule/ec/util.h",
     "crypto/fipsmodule/ecdsa/ecdsa_verify_tests.txt",
-    "crypto/fipsmodule/modes/asm/aesni-gcm-x86_64.pl",
-    "crypto/fipsmodule/modes/asm/ghash-armv4.pl",
-    "crypto/fipsmodule/modes/asm/ghash-x86.pl",
-    "crypto/fipsmodule/modes/asm/ghash-x86_64.pl",
-    "crypto/fipsmodule/modes/asm/ghashv8-armx.pl",
-    "crypto/fipsmodule/modes/asm/aesv8-gcm-armv8.pl",
     "crypto/fipsmodule/sha/asm/sha256-armv4.pl",
     "crypto/fipsmodule/sha/asm/sha512-armv4.pl",
     "crypto/fipsmodule/sha/asm/sha512-armv8.pl",
@@ -102,8 +103,8 @@ include = [
     "crypto/poly1305/poly1305.c",
     "crypto/poly1305/poly1305_arm.c",
     "crypto/poly1305/poly1305_arm_asm.S",
-    "crypto/cipher_extra/asm/chacha20_poly1305_armv8.pl",
-    "crypto/cipher_extra/asm/chacha20_poly1305_x86_64.pl",
+    "crypto/cipher/asm/chacha20_poly1305_armv8.pl",
+    "crypto/cipher/asm/chacha20_poly1305_x86_64.pl",
     "examples/**/*.rs",
     "include/ring-core/aes.h",
     "include/ring-core/arm_arch.h",
@@ -111,7 +112,6 @@ include = [
     "include/ring-core/base.h",
     "include/ring-core/check.h",
     "include/ring-core/mem.h",
-    "include/ring-core/poly1305.h",
     "include/ring-core/target.h",
     "include/ring-core/type_check.h",
     "src/**/*.rs",
@@ -156,9 +156,6 @@ name = "ring"
 cfg-if = { version = "1.0.0", default-features = false }
 untrusted = { version = "0.9" }
 
-[target.'cfg(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little"), target_arch = "x86",target_arch = "x86_64"))'.dependencies]
-spin = { version = "0.9.8", default-features = false, features = ["once"] }
-
 [target.'cfg(all(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little")), any(target_os = "android", target_os = "linux")))'.dependencies]
 libc = { version = "0.2.148", default-features = false }
 
@@ -175,12 +172,7 @@ wasm-bindgen-test = { version = "0.3.37", default-features = false, features = [
 libc = { version = "0.2.148", default-features = false }
 
 [build-dependencies]
-cc = { version = "1.0.83", default-features = false }
-
-# At least 1.0.93 is requried for visionOS, but some versions around that point
-# have bugs that seem to have been fixed in 1.0.97 or so.
-[target.'cfg(all(target_vendor = "apple", target_os = "visionos"))'.build-dependencies]
-cc = { version = "1.0.97", default-features = false }
+cc = { version = "1.2.8", default-features = false }
 
 [features]
 # These features are documented in the top-level module's documentation.

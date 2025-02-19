@@ -17,6 +17,7 @@ use crate::{error::LenMismatchError, limb::LIMB_BITS};
 
 #[macro_use]
 mod ffi;
+mod aarch64_mont;
 mod x86_64_mont;
 
 mod constant;
@@ -25,6 +26,7 @@ mod constant;
 pub mod bigint;
 
 pub(crate) mod inout;
+mod limbs512;
 pub mod montgomery;
 
 mod n0;

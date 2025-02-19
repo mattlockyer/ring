@@ -12,7 +12,7 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::{AES, ARMCAP_STATIC, NEON, PMULL, SHA256};
+use super::{Aes, Neon, PMull, Sha256, Sha512, CAPS_STATIC};
 
 pub const FORCE_DYNAMIC_DETECTION: u32 = 0;
 
@@ -26,10 +26,10 @@ pub fn detect_features() -> u32 {
 
     const ZX_OK: i32 = 0;
     const ZX_FEATURE_KIND_CPU: u32 = 0;
-    const ZX_ARM64_FEATURE_ISA_ASIMD: u32 = 1 << 2;
     const ZX_ARM64_FEATURE_ISA_AES: u32 = 1 << 3;
     const ZX_ARM64_FEATURE_ISA_PMULL: u32 = 1 << 4;
-    const ZX_ARM64_FEATURE_ISA_SHA2: u32 = 1 << 6;
+    const ZX_ARM64_FEATURE_ISA_SHA256: u32 = 1 << 6;
+    const ZX_ARM64_FEATURE_ISA_SHA512: u32 = 1 << 18;
 
     let mut caps = 0;
     let rc = unsafe { zx_system_get_features(ZX_FEATURE_KIND_CPU, &mut caps) };
@@ -37,17 +37,20 @@ pub fn detect_features() -> u32 {
     let mut features = 0;
 
     // We do not need to check for the presence of NEON, as Armv8-A always has it
-    const _ASSERT_NEON_DETECTED: () = assert!((ARMCAP_STATIC & NEON.mask) == NEON.mask);
+    const _ASSERT_NEON_DETECTED: () = assert!((CAPS_STATIC & Neon::mask()) == Neon::mask());
 
     if rc == ZX_OK {
         if caps & ZX_ARM64_FEATURE_ISA_AES == ZX_ARM64_FEATURE_ISA_AES {
-            features |= AES.mask;
+            features |= Aes::mask();
         }
         if caps & ZX_ARM64_FEATURE_ISA_PMULL == ZX_ARM64_FEATURE_ISA_PMULL {
-            features |= PMULL.mask;
+            features |= PMull::mask();
         }
-        if caps & ZX_ARM64_FEATURE_ISA_SHA2 == ZX_ARM64_FEATURE_ISA_SHA2 {
-            features |= SHA256.mask;
+        if caps & ZX_ARM64_FEATURE_ISA_SHA256 == ZX_ARM64_FEATURE_ISA_SHA256 {
+            features |= Sha256::mask();
+        }
+        if caps & ZX_ARM64_FEATURE_ISA_SHA512 == ZX_ARM64_FEATURE_ISA_SHA512 {
+            features |= Sha512::mask();
         }
     }
 
